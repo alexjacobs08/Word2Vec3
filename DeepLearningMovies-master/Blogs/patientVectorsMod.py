@@ -147,7 +147,7 @@ with open("../../../../blogData/output.tsv",'rb') as f:
 
     n = 300
 
-    patientVector = np.zeros((6,n),dtype="float64")#prealllocate for speed
+    #patientVector = np.zeros((6,n),dtype="float64")#prealllocate for speed
     meanVector = np.zeros((1,n),dtype="float64")
     gMeanVector = np.zeros((1,n),dtype="float64")
     medianVector = np.zeros((1,n),dtype="float64")
@@ -184,26 +184,29 @@ with open("../../../../blogData/output.tsv",'rb') as f:
             A = getAvgFeatureVecs(clean_reviews, model, 300)
             #print blogArrays.shape
 
-            m,n = A.shape
+            #print A[i,:]
 
 
             justGender.append(genderOld)
 
-
-
-            #print gMeanVector.shape
             #print scipy.stats.mstats.gmean(A[:,:]).reshape(1,300)
-            gMeanVector = np.vstack((gMeanVector, np.float64(scipy.stats.mstats.gmean(A[:,:])).reshape((1,300))))
+            gMean = np.array(scipy.stats.mstats.gmean(A, axis=0))
+            gMeanVector = np.vstack((gMeanVector, gMean))
 
-            print medianVector.shape
+            median = np.array(np.nanmedian(A, axis=0))
+            medianVector = np.vstack((medianVector, median))
 
-            medianVector = np.vstack((medianVector, np.float64(np.nanmedian(A[:,:])).reshape((1,300))))
+            mean = np.array(np.mean(A,axis=0))
+            meanVector = np.vstack((meanVector,mean))
 
-            minVector = np.vstack((minVector, np.float64(np.nanmin(A[:,:])).reshape((1,300))))
+            min = np.array(np.nanmin(A,axis=0))
+            minVector = np.vstack((minVector, min))
 
-            maxVector = np.vstack((maxVector,np.float64(np.nanmax(A[:,:])).reshape((1,300))))
+            max = np.array(np.nanmax(A,axis=0))
+            maxVector = np.vstack((maxVector,max))
 
-            stdVector = np.vstack((stdVector, np.float64(np.nanstd(A[:,:])).reshape((1,300))))
+            std = np.array(np.nanstd(A,axis=0))
+            stdVector = np.vstack((stdVector,std))
 
 
 
@@ -268,6 +271,17 @@ with open("../../../../blogData/output.tsv",'rb') as f:
         count += 1
     f.close()
 
+    labelArray = np.asarray(justGender)
+
+
+    np.save("labelsArray",labelArray)
+    np.save("meanVector",meanVector)
+    np.save("gMeanVector",gMeanVector)
+    np.save("medianVector",medianVector)
+    np.save("minVector",minVector)
+    np.save("maxVector",maxVector)
+    np.save("stdVector",stdVector)
+
 
     print "just gender length", len(justGender)
 
@@ -275,12 +289,13 @@ with open("../../../../blogData/output.tsv",'rb') as f:
 
 
 
-
+    """
 
     vectList = [justGender,justVectors,meanVectors,gMeanVectors,medianVectors,minVectors,maxVectors,stdVectors]
 
     for vect in vectList:
         del vect[775:777]
+
 
 
     vectorsArray = np.asarray(justVectors)
@@ -321,7 +336,7 @@ stdVector = np.reshape(stdVector,(2845,300))
 
 
 
-
+"""
 
 vectList = [meanVector,gMeanVector,medianVector,minVector,maxVector,stdVector]
 vectListNames = ['meanVector','gMeanVector','medianVector','minVector','maxVector','stdVector']

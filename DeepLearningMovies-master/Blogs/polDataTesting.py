@@ -1,12 +1,12 @@
 import random
-import pandas as pd
 import os
 from nltk.corpus import stopwords
 import nltk.data
-import logging
+#nltk.download()
 import re
 from bs4 import BeautifulSoup
-import numpy as np  # Make sure that numpy is imported
+import numpy as np
+import scipy
 from gensim.models import Word2Vec
 from sklearn.ensemble import RandomForestClassifier
 from KaggleWord2VecUtility import KaggleWord2VecUtility
@@ -15,7 +15,9 @@ from sklearn.preprocessing import Imputer
 from sklearn.naive_bayes import GaussianNB
 from sklearn import svm
 imp = Imputer(missing_values="NaN")
-np.set_printoptions(threshold=np.nan)
+
+# for debugging purposes
+#np.set_printoptions(threshold=np.nan)
 
 def getCleanReviews(reviews):
     clean_reviews = []
@@ -45,8 +47,10 @@ def makeFeatureVec(words, model, num_features):
     #
     # Divide the result by the number of words to get the average
     featureVec = np.divide(featureVec,nwords)
+    #featureVec = np.array(scipy.stats.mstats.gmean(featureVec, axis=0))
+    #featureVec = np.array(np.median(featureVec, axis=0))
+    #featureVec = np.array(np.max(featureVec, axis=0))
     return featureVec
-
 
 def getAvgFeatureVecs(reviews, model, num_features):
     # Given a set of reviews (each one a list of words), calculate
@@ -99,17 +103,74 @@ def review_to_words( raw_review ):
 
 
 
+
+def review_to_wordlist( review, remove_stopwords=False ):
+    # Function to convert a document to a sequence of words,
+    # optionally removing stop words.  Returns a list of words.
+    #
+    # 1. Remove HTML
+    review_text = BeautifulSoup(review).get_text()
+    #
+    # 2. Remove non-letters
+    review_text = re.sub("[^a-zA-Z]"," ", review_text)
+    #
+    # 3. Convert words to lower case and split them
+    words = review_text.lower().split()
+
+    #words = tokenizer.tokenize(words.strip())
+    #
+    # 4. Optionally remove stop words (false by default)
+    if remove_stopwords:
+        stops = set(stopwords.words("english"))
+        words = [w for w in words if not w in stops]
+    #
+    # 5. Return a list of words
+    return(words)
+
+# Load the punkt tokenizer
+tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+
+# Define a function to split a review into parsed sentences
+def review_to_sentences( review, tokenizer, remove_stopwords=False ):
+    # Function to split a review into parsed sentences. Returns a
+    # list of sentences, where each sentence is a list of words
+    #
+    # 1. Use the NLTK tokenizer to split the paragraph into sentences
+    raw_sentences = tokenizer.tokenize(review.strip())
+    #
+    # 2. Loop over each sentence
+    sentences = []
+    for raw_sentence in raw_sentences:
+        # If a sentence is empty, skip it
+        if len(raw_sentence) > 0:
+            # Otherwise, call review_to_wordlist to get a list of words
+            sentences.append( review_to_wordlist( raw_sentence, \
+              remove_stopwords ))
+    #
+    # Return the list of sentences (each sentence is a list of words,
+    # so this returns a list of lists
+    return sentences
+
+
+
 #fname = "w2vModelsize300"
-num_features = 2500
+num_features = 3000
 #model = Word2Vec.load(fname)
 
+
+
+# data
+# ../../../../txt_sentoken/pos contains 1000 movie reviews, each in its own .txt file, each review is of positive sentiment (1)
+# ../../../../txt_sentoken/neg contains 1000 movie reviews, each in its own .txt file, each review is of negative sentiment (0)
 positiveDataFile = "../../../../txt_sentoken/pos"
 negativeDataFile = "../../../../txt_sentoken/neg"
 
+#lists to store reviews initially
 positiveReviews = []
 negativeReviews = []
 for i in os.listdir(positiveDataFile):
     with open(os.path.join(positiveDataFile,i),"rb") as f:
+        #add each review to list in its entirety
         positiveReviews.append(f.read())
     f.close()
 
@@ -119,20 +180,50 @@ for i in os.listdir(negativeDataFile):
     f.close()
 
 corpus = positiveReviews + negativeReviews
-random.shuffle(corpus)
-print "builing Word2Vec model..."
-model = Word2Vec(corpus, size=num_features, window=50, workers=8)
+
+
+
+
+review_1 = []
+
+for i in xrange(len(corpus)):
+    review_1 += review_to_sentences(corpus[i], tokenizer,remove_stopwords=False)
+
+print "review_1[2] ", review_1[2]
+print "review_1[2] ", review_1[3]
+print "review_1[2] ", review_1[4]
+print "review_1[2] ", review_1[5]
+#random.shuffle(review_1) #shuffle the corpus
+
+#print "builing Word2Vec model..."
+model = Word2Vec(review_1, size=num_features, window=15, workers=1)
+print "loading word2vec model..."
+#model = Word2Vec.load_word2vec_format('../../../../Data/GoogleNews-vectors-negative300.bin', binary=True)
 
 
 clean_reviews_Pos = []
+clean_reviews_Pos_BOW = []
 clean_reviews_Neg = []
+clean_reviews_Neg_BOW = []
 print "cleaning and parsing data.."
-
+print review_to_words(positiveReviews[1])
+review_size = 0
 for i in xrange(len(positiveReviews)):
-    clean_reviews_Pos.append((review_to_words(positiveReviews[i])))
+    review_ = review_to_wordlist(positiveReviews[i])
+    clean_reviews_Pos_BOW.append(review_to_words(positiveReviews[i]))
+    clean_reviews_Pos.append(review_)
+    review_size += len(review_)
+    #print "review size", len(review_)
 
 for i in xrange(len(negativeReviews)):
-    clean_reviews_Neg.append((review_to_words(negativeReviews[i])))
+    review_ = review_to_wordlist(negativeReviews[i])
+    clean_reviews_Neg_BOW.append((review_to_words(negativeReviews[i])))
+    clean_reviews_Neg.append(review_)
+    review_size += len(review_)
+
+totalsize = len(clean_reviews_Pos) + len(clean_reviews_Neg)
+
+print "average words", review_size/totalsize
 
 #model = Word2Vec.load(fname)
 #print "loaded w2v model..."
@@ -144,37 +235,37 @@ for i in xrange(len(negativeReviews)):
 #print clean_test_review[1]
 
 print "creating features vectors..."
+#create array of vectors for each array
 posFeatures = getAvgFeatureVecs(clean_reviews_Pos, model, num_features)
 negFeatures = getAvgFeatureVecs(clean_reviews_Neg, model, num_features)
 
 
 
 
-
+#add label to review array
 posFeatures = np.insert(posFeatures,0,1,axis=1)#w2v
 negFeatures = np.insert(negFeatures,0,0,axis=1)#w2v
 
-
-
-
 m,n = posFeatures.shape
 
+#determine lenght of training set
 train = int(.8*m)
 
 
 
-
+#stack training vectors
 trainingData = np.vstack((posFeatures[0:train,:], negFeatures[0:train,:]))#w2v
-BOW_trainingData_unShuffled = clean_reviews_Pos[0:train] + clean_reviews_Neg[0:train]#BOW
 
+#append BOW lists together for training data
+BOW_trainingData_unShuffled = clean_reviews_Pos_BOW[0:train] + clean_reviews_Neg_BOW[0:train]#BOW
 
+#create BOW lables
 BOW_train_labels_unShuffled = np.zeros((1,len(BOW_trainingData_unShuffled)),dtype="float64")
-
 BOW_train_labels_unShuffled[0,0:train] = int(1)
 BOW_train_labels_unShuffled[0,train:] = int(0)
 
 
-
+#shuffle BOW training list and lables to match indexes
 BOW_trainingData = []
 BOW_train_labels = []
 index_shuffle = range(len(BOW_trainingData_unShuffled))
@@ -183,20 +274,18 @@ for i in index_shuffle:
     BOW_trainingData.append(BOW_trainingData_unShuffled[i])
     BOW_train_labels.append(BOW_train_labels_unShuffled[0][i])
 
-
-
-
+#repeat process for vectors and BOW testing data and labels
 testingData = np.vstack((posFeatures[train+1:,:], negFeatures[train+1:,:]))#w2v
-BOW_testingData_unShuffled = clean_reviews_Pos[train+1:] + clean_reviews_Neg[train+1:]#BOW
 
+BOW_testingData_unShuffled = clean_reviews_Pos_BOW[train+1:] + clean_reviews_Neg_BOW[train+1:]#BOW
 
 BOW_test_labels_unShuffled = np.zeros((1,len(BOW_testingData_unShuffled)))
-
 BOW_test_labels_unShuffled[0,0:len(posFeatures)-train] = [1]
 BOW_test_labels_unShuffled[0,len(posFeatures)-train:] = [0]
 
 BOW_testingData = []
 BOW_test_labels = []
+
 index_shuffle = range(len(BOW_testingData_unShuffled))
 random.shuffle(index_shuffle)
 for i in index_shuffle:
@@ -204,23 +293,26 @@ for i in index_shuffle:
     BOW_test_labels.append(BOW_test_labels_unShuffled[0][i])
 
 
-
+#shuffle w2v arrays
 np.random.shuffle(trainingData)
 np.random.shuffle(testingData)
 
+#remove lables from w2v arrays
 train_labels = trainingData[:,0]
 test_labels  = testingData[:,0]
-
 trainingData = np.delete(trainingData,0,axis=1)
 testingData = np.delete(testingData,0,axis=1)
 
-where_are_NaNs = np.isnan(trainingData)
-trainingData[where_are_NaNs] = 0
 
+######## i was runing into NaN errors, that appears to be over but this changed them all to 0s
+########
+#where_are_NaNs = np.isnan(trainingData)
+#trainingData[where_are_NaNs] = 0
+#where_are_NaNs = np.isnan(testingData)
+#testingData[where_are_NaNs] = 0
 
-where_are_NaNs = np.isnan(testingData)
-testingData[where_are_NaNs] = 0
-
+######## imp also attempted to remove NaNs
+########
 #trainingData = imp.fit_transform(trainingData)
 #testingData = imp.fit_transform(testingData)
 
@@ -239,116 +331,49 @@ vectorizer = CountVectorizer(analyzer = "word",   \
 # and learns the vocabulary; second, it transforms our training data
 # into feature vectors. The input to fit_transform should be a list of
 # strings.
-#print BOW_trainingData
-print type(BOW_trainingData[0])
-td = getCleanReviews(BOW_trainingData)
-
+#
+# Numpy arrays are easy to work with, so convert the result to an array
 BOW_train_data_features = vectorizer.fit_transform(BOW_trainingData).toarray()
-
-# Numpy arrays are easy to work with, so convert the result to an
-# array
-
-# ******* Train a random forest using the bag of words
-print "training random forest for BOW..."
-forest = RandomForestClassifier(n_estimators=1000)
-
-forest.fit(BOW_train_data_features, BOW_train_labels)
-
 BOW_test_data_features = vectorizer.transform(BOW_testingData).toarray()
 
+######## Train a random forest using the bag of words
+print "training random forest for BOW..."
+forest_size = 1000
+forest = RandomForestClassifier(n_estimators= forest_size)
+forest.fit(BOW_train_data_features, BOW_train_labels)
+scoreBOW1 = forest.score(BOW_test_data_features, BOW_test_labels)
+print "score for BOW random forest with ", forest_size," estimators ", scoreBOW1
 
-scoreBOW = forest.score(BOW_test_data_features, BOW_test_labels)
+######## Train and test svm for BOW
 
-print "score for BOW random forest ", scoreBOW
+clf = svm.SVC()
+clf.fit(BOW_train_data_features, BOW_train_labels)
+scoreBOW2 = clf.score(BOW_test_data_features, BOW_test_labels)
+print "score for BOW svm ", scoreBOW2
+######## Train and test baesian classifier for BOW
 
-forest = RandomForestClassifier( n_estimators = 1000 )
+gnb = GaussianNB()
+y_preditc = gnb.fit(BOW_train_data_features, BOW_train_labels)
+scoreBOW3 = gnb.score(BOW_test_data_features, BOW_test_labels)
 
+print "score for BOW baesian classifier ", scoreBOW3
+
+#repeat with word vectors
 print "Fitting a random forest to word vectors size ", num_features," ..."
-
+forest_size = 1000
+forest = RandomForestClassifier( n_estimators = forest_size )
 forest = forest.fit(trainingData,train_labels)
-
-# Test & extract results
-#result = forest.predict( llist[2201:,:])
-
 score = forest.score(testingData,test_labels)
-
 print "random forest score ", score
 
 clf = svm.SVC()
 clf.fit(trainingData,train_labels)
-
-
 score2 = clf.score(testingData,test_labels)
-
 print "svm score ", score2
 
 gnb = GaussianNB()
-
 y_preditc = gnb.fit(trainingData,train_labels)
 score3 = gnb.score(testingData,test_labels)
-
 print "baesian classifier ", score3
 
 
-
-
-
-"""
-
-#vectList = [meanVector,gMeanVector,medianVector,minVector,maxVector,stdVector]
-vectListNames = ['meanVector','gMeanVector','medianVector','minVector','maxVector','stdVector']
-#label = labelArray
-
-n = 0
-for llist in vectList:
-    name = vectListNames[n]
-
-    print np.count_nonzero(~np.isnan(llist))
-    print llist.size
-
-    where_are_NaNs = np.isnan(llist)
-    llist[where_are_NaNs] = 0
-
-    #print llist
-
-    forest = RandomForestClassifier( n_estimators = 1000 )
-    train_data = llist[0:2200,:]
-    train_labels = label[0:2200]
-    new_train_data = imp.fit_transform(train_data)
-    #print new_train_data
-    #new_train_labels = imp.fit_transform(train_labels)
-    #print "trainlable size ", new_train_labels.shape
-
-    print "Fitting a random forest to labeled training data...", name
-    try:
-        forest = forest.fit(new_train_data,train_labels)
-
-    # Test & extract results
-        result = forest.predict( llist[2201:,:])
-
-        score = forest.score(llist[2201:,:],label[2201:])
-
-
-    # Write the test results
-        print "forest score ",name," ", score
-    except ValueError:
-        print "fucking values"
-
-    clf = svm.SVC()
-    clf.fit(new_train_data,train_labels)
-
-
-    score2 = clf.score(llist[2201:,:],label[2201:])
-
-    print "svm score ",name, " ", score2
-
-    gnb = GaussianNB()
-    y_preditc = gnb.fit(new_train_data,train_labels)
-    score3 = gnb.score(llist[2201:,:],label[2201:])
-
-    print "baesian classifier ",name," ", score3
-
-    n+=1
-
-
-"""
