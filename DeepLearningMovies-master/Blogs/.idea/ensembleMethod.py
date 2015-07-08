@@ -1,8 +1,9 @@
+
 import random
 import os
 from nltk.corpus import stopwords
 import nltk.data
-
+#nltk.download()
 import re
 from bs4 import BeautifulSoup
 import numpy as np
@@ -154,7 +155,7 @@ def review_to_sentences( review, tokenizer, remove_stopwords=False ):
 
 
 #fname = "w2vModelsize300"
-num_features = 3000
+num_features = 300
 #model = Word2Vec.load(fname)
 
 
@@ -162,8 +163,8 @@ num_features = 3000
 # data
 # ../../../../txt_sentoken/pos contains 1000 movie reviews, each in its own .txt file, each review is of positive sentiment (1)
 # ../../../../txt_sentoken/neg contains 1000 movie reviews, each in its own .txt file, each review is of negative sentiment (0)
-positiveDataFile = "../../../../txt_sentoken/pos"
-negativeDataFile = "../../../../txt_sentoken/neg"
+positiveDataFile = "../../../../../txt_sentoken/pos"
+negativeDataFile = "../../../../../txt_sentoken/neg"
 
 #lists to store reviews initially
 positiveReviews = []
@@ -187,7 +188,7 @@ corpus = positiveReviews + negativeReviews
 review_1 = []
 
 for i in xrange(len(corpus)):
-    review_1 += review_to_sentences(corpus[i], tokenizer,remove_stopwords=True)
+    review_1 += review_to_sentences(corpus[i], tokenizer,remove_stopwords=False)
 
 random.shuffle(review_1) #shuffle the corpus
 
@@ -235,6 +236,19 @@ print "creating features vectors..."
 posFeatures = getAvgFeatureVecs(clean_reviews_Pos, model, num_features)
 negFeatures = getAvgFeatureVecs(clean_reviews_Neg, model, num_features)
 
+print clean_reviews_Pos[1] #list of words.
+print len(clean_reviews_Pos[1]) #size of list of words
+
+#train model
+
+#for each review
+#split review into desiered size
+#classify each piece of review independently
+#record classification
+#report highest classification
+
+print clean_reviews_Pos[1]
+print len(clean_reviews_Pos[1])
 
 
 
@@ -246,8 +260,6 @@ m,n = posFeatures.shape
 
 #determine lenght of training set
 train = int(.8*m)
-
-
 
 #stack training vectors
 trainingData = np.vstack((posFeatures[0:train,:], negFeatures[0:train,:]))#w2v
@@ -358,9 +370,110 @@ print "score for BOW baesian classifier ", scoreBOW3
 print "Fitting a random forest to word vectors size ", num_features," ..."
 forest_size = 1000
 forest = RandomForestClassifier( n_estimators = forest_size )
+
+forest = forest.fit(trainingData,train_labels)
+
+
+clean_reviews_Pos #list of all pos reviews as list
+clean_reviews_Pos_test = clean_reviews_Pos#[train:]
+
+clean_reviews_Neg #list of all neg reviews as list
+clean_reviews_Neg_test = clean_reviews_Neg#[train:]
+
+posScore = 0
+posNum = len(clean_reviews_Pos_test)
+q = 0
+for i in xrange(len(clean_reviews_Pos_test)):
+    review = clean_reviews_Pos_test[i]
+    length = len(review)
+
+    size = int(str(length)[0]) #gives the hundreds column of the length
+
+    scoreKeeper = 0
+    n = 0
+    k = 0
+    for j in xrange(size):
+        n = j * 100
+        k = n + 100
+        if k > length:
+            k = length % (size*100)
+        review_cut = review[n:k]
+        review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
+
+
+
+        scoreKeeper += forest.predict(review_Array)
+
+        if q == 0:
+            print forest.predict(review_Array)
+            q+=1
+
+    if scoreKeeper > (size/2):
+        posScore += 1
+
+
+negScore = 0
+negNum = len(clean_reviews_Neg_test)
+
+print "done with pos clasification"
+print "pos score ", posScore
+print "pos Num ", posNum
+
+for i in xrange(len(clean_reviews_Neg_test)):
+    review = clean_reviews_Neg_test[i]
+    length = len(review)
+
+    size = int(str(length)[0]) #gives the hundreds column of the length
+
+    scoreKeeper = 0
+    n = 0
+    k = 0
+    for j in xrange(size):
+        n = j * 100
+        k = n + 100
+        if k > length:
+            k = length % (size*100)
+        review_cut = review[n:k]
+        review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
+
+        try:
+            scoreKeeper += forest.predict(review_Array)
+        except:
+            print "fuck"
+            print review_Array
+
+    if scoreKeeper < (size/2):
+        negScore += 1
+
+print "neg score ", negScore
+print "neg Num ", negNum
+
+totalScore = (posScore + negScore)
+print "total score ", totalScore
+
+totalPossible = posNum + negNum
+
+print "possible score ", totalPossible
+
+
+
+score = totalScore / totalPossible
+
+
+
+
+
+#score = forest.score(testingData,test_labels)
+print "random forest score ", score
+
+
+print "Fitting a random forest to word vectors size ", num_features," ..."
+forest_size = 1000
+forest = RandomForestClassifier( n_estimators = forest_size )
 forest = forest.fit(trainingData,train_labels)
 score = forest.score(testingData,test_labels)
 print "random forest score ", score
+
 
 clf = svm.SVC()
 clf.fit(trainingData,train_labels)
