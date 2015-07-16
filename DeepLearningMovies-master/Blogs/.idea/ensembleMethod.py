@@ -14,7 +14,9 @@ from KaggleWord2VecUtility import KaggleWord2VecUtility
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import Imputer
 from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import roc_auc_score
 from sklearn import svm
+from sklearn import cross_validation
 imp = Imputer(missing_values="NaN")
 
 # for debugging purposes
@@ -192,30 +194,40 @@ for i in xrange(len(corpus)):
 
 random.shuffle(review_1) #shuffle the corpus
 
-#print "builing Word2Vec model..."
+print "builing Word2Vec model..."
 model = Word2Vec(review_1, size=num_features, window=15, workers=1)
-print "loading word2vec model..."
-#model = Word2Vec.load_word2vec_format('../../../../Data/GoogleNews-vectors-negative300.bin', binary=True)
+#print "loading word2vec model..."
+#model = Word2Vec.load_word2vec_format('../../../../../Data/GoogleNews-vectors-negative300.bin', binary=True)
 
 
 clean_reviews_Pos = []
 clean_reviews_Pos_BOW = []
 clean_reviews_Neg = []
 clean_reviews_Neg_BOW = []
+clean_reviews_Neg_1 = []
+clean_reviews_Pos_1 = []
 print "cleaning and parsing data.."
-print review_to_words(positiveReviews[1])
+#print review_to_words(positiveReviews[1])
 review_size = 0
 for i in xrange(len(positiveReviews)):
-    review_ = review_to_wordlist(positiveReviews[i])
+    review_1 = review_to_wordlist(positiveReviews[i])  ###################################################################### change way words are used
     clean_reviews_Pos_BOW.append(review_to_words(positiveReviews[i]))
+    clean_reviews_Pos_1.append(review_1)
+
+    review_ = review_to_wordlist(positiveReviews[i])
     clean_reviews_Pos.append(review_)
+
     review_size += len(review_)
     #print "review size", len(review_)
 
 for i in xrange(len(negativeReviews)):
-    review_ = review_to_wordlist(negativeReviews[i])
+    review_1 = review_to_wordlist(negativeReviews[i])  ###################################################################### change way words are used
     clean_reviews_Neg_BOW.append((review_to_words(negativeReviews[i])))
+    clean_reviews_Neg_1.append(review_1)
+
+    review_ = review_to_wordlist(negativeReviews[i])
     clean_reviews_Neg.append(review_)
+
     review_size += len(review_)
 
 totalsize = len(clean_reviews_Pos) + len(clean_reviews_Neg)
@@ -225,44 +237,14 @@ print "average words", review_size/totalsize
 #model = Word2Vec.load(fname)
 #print "loaded w2v model..."
 
-#vectListPos = getCleanReviews(positiveReviews)
-#vectListNeg = getCleanReviews(negativeReviews)
+posFeatures = getAvgFeatureVecs(clean_reviews_Pos_1, model, num_features)
+negFeatures = getAvgFeatureVecs(clean_reviews_Neg_1, model, num_features)
 
-
-#print clean_test_review[1]
-
-print "creating features vectors..."
-#create array of vectors for each array
-posFeatures = getAvgFeatureVecs(clean_reviews_Pos, model, num_features)
-negFeatures = getAvgFeatureVecs(clean_reviews_Neg, model, num_features)
-
-print clean_reviews_Pos[1] #list of words.
-print len(clean_reviews_Pos[1]) #size of list of words
-
-#train model
-
-#for each review
-#split review into desiered size
-#classify each piece of review independently
-#record classification
-#report highest classification
-
-print clean_reviews_Pos[1]
-print len(clean_reviews_Pos[1])
-
-
-
-#add label to review array
-posFeatures = np.insert(posFeatures,0,1,axis=1)#w2v
-negFeatures = np.insert(negFeatures,0,0,axis=1)#w2v
 
 m,n = posFeatures.shape
 
 #determine lenght of training set
 train = int(.8*m)
-
-#stack training vectors
-trainingData = np.vstack((posFeatures[0:train,:], negFeatures[0:train,:]))#w2v
 
 #append BOW lists together for training data
 BOW_trainingData_unShuffled = clean_reviews_Pos_BOW[0:train] + clean_reviews_Neg_BOW[0:train]#BOW
@@ -282,8 +264,6 @@ for i in index_shuffle:
     BOW_trainingData.append(BOW_trainingData_unShuffled[i])
     BOW_train_labels.append(BOW_train_labels_unShuffled[0][i])
 
-#repeat process for vectors and BOW testing data and labels
-testingData = np.vstack((posFeatures[train+1:,:], negFeatures[train+1:,:]))#w2v
 
 BOW_testingData_unShuffled = clean_reviews_Pos_BOW[train+1:] + clean_reviews_Neg_BOW[train+1:]#BOW
 
@@ -299,30 +279,6 @@ random.shuffle(index_shuffle)
 for i in index_shuffle:
     BOW_testingData.append(BOW_testingData_unShuffled[i])
     BOW_test_labels.append(BOW_test_labels_unShuffled[0][i])
-
-
-#shuffle w2v arrays
-np.random.shuffle(trainingData)
-np.random.shuffle(testingData)
-
-#remove lables from w2v arrays
-train_labels = trainingData[:,0]
-test_labels  = testingData[:,0]
-trainingData = np.delete(trainingData,0,axis=1)
-testingData = np.delete(testingData,0,axis=1)
-
-
-######## i was runing into NaN errors, that appears to be over but this changed them all to 0s
-########
-#where_are_NaNs = np.isnan(trainingData)
-#trainingData[where_are_NaNs] = 0
-#where_are_NaNs = np.isnan(testingData)
-#testingData[where_are_NaNs] = 0
-
-######## imp also attempted to remove NaNs
-########
-#trainingData = imp.fit_transform(trainingData)
-#testingData = imp.fit_transform(testingData)
 
 
 print "creating bag of words..."
@@ -346,7 +302,7 @@ BOW_test_data_features = vectorizer.transform(BOW_testingData).toarray()
 
 ######## Train a random forest using the bag of words
 print "training random forest for BOW..."
-forest_size = 1000
+forest_size = 100
 forest = RandomForestClassifier(n_estimators= forest_size)
 forest.fit(BOW_train_data_features, BOW_train_labels)
 scoreBOW1 = forest.score(BOW_test_data_features, BOW_test_labels)
@@ -368,103 +324,166 @@ print "score for BOW baesian classifier ", scoreBOW3
 
 #repeat with word vectors
 print "Fitting a random forest to word vectors size ", num_features," ..."
-forest_size = 1000
-forest = RandomForestClassifier( n_estimators = forest_size )
-
-forest = forest.fit(trainingData,train_labels)
-
-
-clean_reviews_Pos #list of all pos reviews as list
-clean_reviews_Pos_test = clean_reviews_Pos#[train:]
-
-clean_reviews_Neg #list of all neg reviews as list
-clean_reviews_Neg_test = clean_reviews_Neg#[train:]
-
-posScore = 0
-posNum = len(clean_reviews_Pos_test)
-q = 0
-for i in xrange(len(clean_reviews_Pos_test)):
-    review = clean_reviews_Pos_test[i]
-    length = len(review)
-
-    size = int(str(length)[0]) #gives the hundreds column of the length
-
-    scoreKeeper = 0
-    n = 0
-    k = 0
-    for j in xrange(size):
-        n = j * 100
-        k = n + 100
-        if k > length:
-            k = length % (size*100)
-        review_cut = review[n:k]
-        review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
 
 
 
-        scoreKeeper += forest.predict(review_Array)
-
-        if q == 0:
-            print forest.predict(review_Array)
-            q+=1
-
-    if scoreKeeper > (size/2):
-        posScore += 1
+print "creating features vectors..."
+#create array of vectors for each array
 
 
-negScore = 0
-negNum = len(clean_reviews_Neg_test)
+test_Data = []
 
-print "done with pos clasification"
-print "pos score ", posScore
-print "pos Num ", posNum
+for i in clean_reviews_Pos:
+    test_Data.append((1,i))
 
-for i in xrange(len(clean_reviews_Neg_test)):
-    review = clean_reviews_Neg_test[i]
-    length = len(review)
+for i in clean_reviews_Neg:
+    test_Data.append((0,i))
 
-    size = int(str(length)[0]) #gives the hundreds column of the length
-
-    scoreKeeper = 0
-    n = 0
-    k = 0
-    for j in xrange(size):
-        n = j * 100
-        k = n + 100
-        if k > length:
-            k = length % (size*100)
-        review_cut = review[n:k]
-        review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
-
-        try:
-            scoreKeeper += forest.predict(review_Array)
-        except:
-            print "fuck"
-            print review_Array
-
-    if scoreKeeper < (size/2):
-        negScore += 1
-
-print "neg score ", negScore
-print "neg Num ", negNum
-
-totalScore = (posScore + negScore)
-print "total score ", totalScore
-
-totalPossible = posNum + negNum
-
-print "possible score ", totalPossible
+posFeatures = getAvgFeatureVecs(clean_reviews_Pos_1, model, num_features)
+negFeatures = getAvgFeatureVecs(clean_reviews_Neg_1, model, num_features)
 
 
 
-score = totalScore / totalPossible
+#add label to review array
+posFeatures = np.insert(posFeatures,0,1,axis=1)#w2v
+negFeatures = np.insert(negFeatures,0,0,axis=1)#w2v
+
+#stack training vectors
+allData = np.vstack((posFeatures, negFeatures))#w2v
+labels = allData[:,0]
+allData = np.delete(allData, 0, axis=0)
+
+
+#shuffle data
+
+
+m,n = allData.shape
+
+k = 3
+crossValNum = 5
+folds = 4
+
+aucMatrix = np.zeros([k,crossValNum])
+
+kf = cross_validation.KFold(m,n_folds = folds)
+
+
+for train_index, test_index in kf:
+
+    train = list(test_Data[f] for f in train_index)
+    test = list(test_Data[f] for f in test_index)
+
+    trainVectors = np.asarray(list(train[f][1] for f in xrange(len(train))))
+    trainLables = np.asarray(list(train[f][0] for f in xrange(len(train))))
+
+    testVectors = np.asarray(list(test[f][1] for f in xrange(len(test))))
+    testLables = np.asarray(list(test[f][0] for f in xrange(len(test))))
+
+    
+
+
+    """
+    fold = np.random.permutation(m)[0:int(float(m)/float(k))]
+
+    test_full = allData[fold]
+    train_full = np.delete(allData, fold, axis=0)
+
+    train_labels = train_full[:,0]
+    test_labels = test_full[:,0]
+
+    trainingData = np.delete(train_full,0,axis=1)
+    testingData = np.delete(test_full,0,axis=1)
+
+    reviewTuples = list(test_Data[f] for f in fold)
+
+    """
+
+
+    predicted = []
+    true = []
+
+    forest_size = 100
+    forest = RandomForestClassifier( n_estimators = forest_size, oob_score=True )
+
+    forestt = forest.fit(trainingData,train_labels)
+
+    oob_score =  forest.oob_score_
+    print "oob score ", oob_score
+
+
+    rcsList = [100]
+
+    for rcs in rcsList:
+
+        correct = 0
+
+        print "ensemble prediction rcs of ", rcs
+
+        for revTup in reviewTuples:
+
+
+            g = True
+            review = revTup[1]
+            Tuplabel = revTup[0]
+
+            length = len(review)
+            size = length / rcs
+            remainder = length % rcs
+
+            scoreKeeper = 0
+
+            n = 0
+            k = 0
+            count = 0
+            for j in xrange(size):
+                n = j * rcs
+                k = n + rcs
+                if k > length:
+                    k = remainder
+                review_cut = review[n:k]
+                review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
+
+                try:
+                    preditctedLabel = forest.predict(review_Array)[0]
+                    count += 1
+                except:
+                    print "fuck"
+                    g = False
+                    break
+
+                if preditctedLabel == Tuplabel:
+                    scoreKeeper+=1
 
 
 
+            if scoreKeeper > count*.5 and g == True:
+                correct +=1
+                predicted.append(Tuplabel)
+
+            else:
+                if Tuplabel == 1:
+                    predicted.append(0)
+                else:
+                    predicted.append(1)
+
+            true.append(Tuplabel)
 
 
-#score = forest.score(testingData,test_labels)
-print "random forest score ", score
+        score = float(correct) / float((len(reviewTuples)))
+
+        print "for rcs of ",rcs," score of ", score
+
+    print true
+    print predicted
+
+    true = np.asarray(true)
+    predicted = np.asarray(predicted)
+
+    aucMatrix[i-1,j-1] = roc_auc_score(true,predicted)
+
+
+
+print aucMatrix
 
 
 print "Fitting a random forest to word vectors size ", num_features," ..."
