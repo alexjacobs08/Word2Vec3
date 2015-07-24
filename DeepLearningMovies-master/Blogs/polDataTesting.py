@@ -332,6 +332,8 @@ vectorizer = CountVectorizer(analyzer = "word",   \
 BOW_train_data_features = vectorizer.fit_transform(BOW_trainingData).toarray()
 BOW_test_data_features = vectorizer.transform(BOW_testingData).toarray()
 
+print BOW_train_data_features
+
 ######## Train a random forest using the bag of words
 print "training random forest for BOW..."
 forest_size = 1000

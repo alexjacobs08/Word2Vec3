@@ -1,3 +1,4 @@
+__author__ = 'alexjacobs'
 
 import random
 import os
@@ -5,6 +6,7 @@ from nltk.corpus import stopwords
 import nltk.data
 #nltk.download()
 import re
+from collections import Counter
 from bs4 import BeautifulSoup
 import numpy as np
 import scipy
@@ -18,6 +20,10 @@ from sklearn.metrics import roc_auc_score
 from sklearn import svm
 from sklearn import cross_validation
 imp = Imputer(missing_values="NaN")
+from sklearn.feature_extraction.text import CountVectorizer
+from nltk.stem.snowball import SnowballStemmer
+import heapq
+
 
 # for debugging purposes
 #np.set_printoptions(threshold=np.nan)
@@ -165,8 +171,8 @@ num_features = 300
 # data
 # ../../../../txt_sentoken/pos contains 1000 movie reviews, each in its own .txt file, each review is of positive sentiment (1)
 # ../../../../txt_sentoken/neg contains 1000 movie reviews, each in its own .txt file, each review is of negative sentiment (0)
-positiveDataFile = "../../../../../txt_sentoken/pos"
-negativeDataFile = "../../../../../txt_sentoken/neg"
+positiveDataFile = "../../../../txt_sentoken/pos"
+negativeDataFile = "../../../../txt_sentoken/neg"
 
 #lists to store reviews initially
 positiveReviews = []
@@ -182,15 +188,65 @@ for i in os.listdir(negativeDataFile):
         negativeReviews.append(f.read())
     f.close()
 
-corpus = positiveReviews + negativeReviews
 
+
+
+corpus = list(positiveReviews + negativeReviews)
+
+bowCorpus = []
+for i in xrange(len(corpus)):
+    bowCorpus.append(review_to_words(corpus[i]))
 
 
 
 review_1 = []
-
 for i in xrange(len(corpus)):
-    review_1 += review_to_sentences(corpus[i], tokenizer,remove_stopwords=False)
+    review_1 += review_to_sentences(corpus[i],tokenizer)
+
+
+
+
+
+review_1 = [' '.join(x) for x in review_1]
+#print review_1[0:100]
+words = re.findall(r'\w+', str(review_1))
+print words[0:100]
+
+
+
+
+
+
+cap_words = [word.upper() for word in words]
+#print cap_words[0:100]
+word_counts = list(Counter(cap_words).values())
+words = list(Counter(cap_words).keys())
+print len(word_counts)
+print len(words)
+newList =  heapq.nlargest(200,word_counts)
+topWords = []
+for t in xrange(len(newList)):
+    topWords.append(words[word_counts.index(newList[t])])
+    print words[word_counts.index((newList[t]))]
+
+
+
+print word_counts[0:100]
+print words[0:100]
+vectorizer = CountVectorizer(analyzer = "word",   \
+                         tokenizer = None,    \
+                         preprocessor = None, \
+                         stop_words = None,   \
+                         max_features = 5000)
+
+
+
+bag_of_words = vectorizer.fit_transform(words)
+
+
+print bag_of_words
+
+
 
 random.shuffle(review_1) #shuffle the corpus
 
@@ -237,102 +293,6 @@ print "average words", review_size/totalsize
 #model = Word2Vec.load(fname)
 #print "loaded w2v model..."
 
-
-"""
-posFeatures = getAvgFeatureVecs(clean_reviews_Pos_1, model, num_features)
-negFeatures = getAvgFeatureVecs(clean_reviews_Neg_1, model, num_features)
-
-
-m,n = posFeatures.shape
-
-#determine lenght of training set
-train = int(.8*m)
-
-#append BOW lists together for training data
-BOW_trainingData_unShuffled = clean_reviews_Pos_BOW[0:train] + clean_reviews_Neg_BOW[0:train]#BOW
-
-#create BOW lables
-BOW_train_labels_unShuffled = np.zeros((1,len(BOW_trainingData_unShuffled)),dtype="float64")
-BOW_train_labels_unShuffled[0,0:train] = int(1)
-BOW_train_labels_unShuffled[0,train:] = int(0)
-
-
-#shuffle BOW training list and lables to match indexes
-BOW_trainingData = []
-BOW_train_labels = []
-index_shuffle = range(len(BOW_trainingData_unShuffled))
-random.shuffle(index_shuffle)
-for i in index_shuffle:
-    BOW_trainingData.append(BOW_trainingData_unShuffled[i])
-    BOW_train_labels.append(BOW_train_labels_unShuffled[0][i])
-
-
-BOW_testingData_unShuffled = clean_reviews_Pos_BOW[train+1:] + clean_reviews_Neg_BOW[train+1:]#BOW
-
-BOW_test_labels_unShuffled = np.zeros((1,len(BOW_testingData_unShuffled)))
-BOW_test_labels_unShuffled[0,0:len(posFeatures)-train] = [1]
-BOW_test_labels_unShuffled[0,len(posFeatures)-train:] = [0]
-
-BOW_testingData = []
-BOW_test_labels = []
-
-index_shuffle = range(len(BOW_testingData_unShuffled))
-random.shuffle(index_shuffle)
-for i in index_shuffle:
-    BOW_testingData.append(BOW_testingData_unShuffled[i])
-    BOW_test_labels.append(BOW_test_labels_unShuffled[0][i])
-
-
-print "creating bag of words..."
-
-# Initialize the "CountVectorizer" object, which is scikit-learn's
-# bag of words tool.
-vectorizer = CountVectorizer(analyzer = "word",   \
-                         tokenizer = None,    \
-                         preprocessor = None, \
-                         stop_words = None,   \
-                         max_features = 5000)
-
-# fit_transform() does two functions: First, it fits the model
-# and learns the vocabulary; second, it transforms our training data
-# into feature vectors. The input to fit_transform should be a list of
-# strings.
-#
-# Numpy arrays are easy to work with, so convert the result to an array
-BOW_train_data_features = vectorizer.fit_transform(BOW_trainingData).toarray()
-BOW_test_data_features = vectorizer.transform(BOW_testingData).toarray()
-
-######## Train a random forest using the bag of words
-print "training random forest for BOW..."
-forest_size = 100
-forest = RandomForestClassifier(n_estimators= forest_size)
-forest.fit(BOW_train_data_features, BOW_train_labels)
-scoreBOW1 = forest.score(BOW_test_data_features, BOW_test_labels)
-print "score for BOW random forest with ", forest_size," estimators ", scoreBOW1
-
-######## Train and test svm for BOW
-
-clf = svm.SVC()
-clf.fit(BOW_train_data_features, BOW_train_labels)
-scoreBOW2 = clf.score(BOW_test_data_features, BOW_test_labels)
-print "score for BOW svm ", scoreBOW2
-######## Train and test baesian classifier for BOW
-
-gnb = GaussianNB()
-y_preditc = gnb.fit(BOW_train_data_features, BOW_train_labels)
-scoreBOW3 = gnb.score(BOW_test_data_features, BOW_test_labels)
-
-print "score for BOW baesian classifier ", scoreBOW3
-
-#repeat with word vectors
-print "Fitting a random forest to word vectors size ", num_features," ..."
-
-
-
-print "creating features vectors..."
-#create array of vectors for each array
-"""
-
 test_Data = []
 
 for i in clean_reviews_Pos:
@@ -343,6 +303,14 @@ for i in clean_reviews_Neg:
 
 posFeatures = getAvgFeatureVecs(clean_reviews_Pos_1, model, num_features)
 negFeatures = getAvgFeatureVecs(clean_reviews_Neg_1, model, num_features)
+
+
+
+
+
+
+
+
 
 
 
@@ -371,7 +339,7 @@ aucMatrix = np.zeros([k,folds])
 
 kf = cross_validation.KFold(m,n_folds = folds)
 fold = 0
-
+method = 1 #which method are we using
 for train_index, test_index in kf:
     fold +=1
 
@@ -383,6 +351,17 @@ for train_index, test_index in kf:
 
     testVectors = np.asarray(list(test[f][1] for f in xrange(len(test))))
     testLables = np.asarray(list(test[f][0] for f in xrange(len(test))))
+
+    forest = RandomForestClassifier(n_estimators=100)
+
+    trainVectorsBOW = vectorizer.fit_transform(trainVectors)
+    testVectorsBOW = vectorizer.fit_transform(testVectors)
+
+    forest = forest.fit(trainVectorsBOW,trainLables)
+
+    score = forest.score(testVectorsBOW,testLables)
+
+    print "bow random forest score", score
 
 
     #trainVectors = getAvgFeatureVecs(trainVectors, model, num_features)
@@ -452,27 +431,55 @@ for train_index, test_index in kf:
 
             scoreKeeper = 0
 
-            n = 0
-            k = 0
-            count = 0
-            for j in xrange(size):
-                n = j * rcs
-                k = n + rcs
-                if k > length:
-                    k = remainder
-                review_cut = review[n:k]
-                review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
 
-                try:
-                    preditctedLabel = forest.predict(review_Array)[0]
-                    count += 1
-                except:
-                    print "fuck"
-                    g = False
-                    break
+            if method == 1:
 
-                if preditctedLabel == Tuplabel:
-                    scoreKeeper+=1
+                n = 0
+                k = 0
+                count = 0
+                for j in xrange(size):
+                    n = j * rcs
+                    k = n + rcs
+                    if k > length:
+                        k = remainder
+                    review_cut = review[n:k]
+                    review_Array = np.asarray(makeFeatureVec(review_cut, model, num_features))
+
+                    try:
+                        preditctedLabel = forest.predict(review_Array)[0]
+                        count += 1
+                    except:
+                        print "fuck"
+                        g = False
+                        break
+
+                    if preditctedLabel == Tuplabel:
+                        scoreKeeper+=1
+
+            elif method == 2:
+                wordList = []#needs to be wordslist
+                countz = 0
+                window = 2
+                for word in review:
+                    reviewSum = 0
+
+                    if word in wordList:
+                        wordSum = 0
+                        for wPlus in window:
+
+                            wordSum += makeFeatureVec(review[countz-wPlus],model,num_features)
+
+                        for wMinus in window:
+
+                            wordSum += makeFeatureVec(review[countz+wPlus],model,num_features)
+
+                        wordSum = float(wordSum) / float(window)
+
+                    reviewSum += wordSum
+
+
+
+
 
 
 
@@ -502,25 +509,11 @@ for train_index, test_index in kf:
 
 
 #print aucMatrix
-"""
-
-print "Fitting a random forest to word vectors size ", num_features," ..."
-forest_size = 1000
-forest = RandomForestClassifier( n_estimators = forest_size )
-forest = forest.fit(trainingData,train_labels)
-score = forest.score(testingData,test_labels)
-print "random forest score ", score
 
 
-clf = svm.SVC()
-clf.fit(trainingData,train_labels)
-score2 = clf.score(testingData,test_labels)
-print "svm score ", score2
-
-gnb = GaussianNB()
-y_preditc = gnb.fit(trainingData,train_labels)
-score3 = gnb.score(testingData,test_labels)
-print "baesian classifier ", score3
 
 
-"""
+
+
+
+
