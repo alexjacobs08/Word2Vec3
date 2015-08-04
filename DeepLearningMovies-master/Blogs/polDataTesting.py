@@ -337,9 +337,20 @@ print BOW_train_data_features
 ######## Train a random forest using the bag of words
 print "training random forest for BOW..."
 forest_size = 1000
-forest = RandomForestClassifier(n_estimators= forest_size)
+forest = RandomForestClassifier(n_estimators= forest_size, oob_score=True)
 forest.fit(BOW_train_data_features, BOW_train_labels)
 scoreBOW1 = forest.score(BOW_test_data_features, BOW_test_labels)
+
+oob_score =  forest.oob_score_
+estimators = forest.estimators_
+features = forest.feature_importances_
+print "oob score ", oob_score
+print "estimators ", estimators
+print "features ", features
+
+
+
+
 print "score for BOW random forest with ", forest_size," estimators ", scoreBOW1
 
 ######## Train and test svm for BOW

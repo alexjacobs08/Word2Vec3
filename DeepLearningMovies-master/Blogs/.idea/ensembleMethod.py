@@ -182,7 +182,43 @@ for i in os.listdir(negativeDataFile):
         negativeReviews.append(f.read())
     f.close()
 
-corpus = positiveReviews + negativeReviews
+corpus = list(positiveReviews + negativeReviews)
+
+bowCorpus = []
+for i in xrange(len(corpus)):
+    bowCorpus.append(review_to_words(corpus[i]))
+
+
+
+review_1 = []
+for i in xrange(len(corpus)):
+    review_1 += review_to_sentences(corpus[i],tokenizer)
+
+
+
+
+
+review_1 = [' '.join(x) for x in review_1]
+#print review_1[0:100]
+words = re.findall(r'\w+', str(review_1))
+print words[0:100]
+
+
+
+
+
+
+cap_words = [word.upper() for word in words]
+#print cap_words[0:100]
+word_counts = list(Counter(cap_words).values())
+words = list(Counter(cap_words).keys())
+print len(word_counts)
+print len(words)
+newList =  heapq.nlargest(200,word_counts)
+topWords = []
+for t in xrange(len(newList)):
+    topWords.append(words[word_counts.index(newList[t])])
+    print words[word_counts.index((newList[t]))]
 
 
 
@@ -371,6 +407,7 @@ aucMatrix = np.zeros([k,folds])
 
 kf = cross_validation.KFold(m,n_folds = folds)
 fold = 0
+method = 2
 
 for train_index, test_index in kf:
     fold +=1
@@ -432,25 +469,21 @@ for train_index, test_index in kf:
 
     rcsList = [50,75,100,125,150,200]
 
-    for rcs in rcsList:
-
-        correct = 0
-
-        #print "ensemble prediction rcs of ", rcs, "fold ", fold
+    for i in xrange(len(testVectors)):
 
 
-        for i in xrange(len(testVectors)):
+        g = True
+        review = testVectors[i]
+        Tuplabel = testLables[i]
+
+        length = len(review)
+        size = length / rcs
+        remainder = length % rcs
+
+        scoreKeeper = 0
 
 
-            g = True
-            review = testVectors[i]
-            Tuplabel = testLables[i]
-
-            length = len(review)
-            size = length / rcs
-            remainder = length % rcs
-
-            scoreKeeper = 0
+        if method == 1:
 
             n = 0
             k = 0
@@ -474,24 +507,58 @@ for train_index, test_index in kf:
                 if preditctedLabel == Tuplabel:
                     scoreKeeper+=1
 
+                if scoreKeeper > count*.5 and g == True:
+                    correct +=1
+                    predicted.append(Tuplabel)
 
-
-            if scoreKeeper > count*.5 and g == True:
-                correct +=1
-                predicted.append(Tuplabel)
-
-            else:
-                if Tuplabel == 1:
-                    predicted.append(0)
                 else:
-                    predicted.append(1)
+                    if Tuplabel == 1:
+                        predicted.append(0)
+                    else:
+                        predicted.append(1)
 
-            true.append(Tuplabel)
+                true.append(Tuplabel)
 
+
+
+        elif method == 2:
+            wordList = words[0:100]#needs to be wordslist
+            countz = 0
+            window = 2
+            wrCount = 0
+            reviewSum = 0
+            for word in review:
+
+                wrCount += 1
+
+                if word in wordList:
+                    wordSum = 0
+                    for wPlus in window:
+
+                        wordSum += makeFeatureVec(review[countz-wPlus],model,num_features)
+
+                    for wMinus in window:
+
+                        wordSum += makeFeatureVec(review[countz+wPlus],model,num_features)
+
+                    wordSum = float(wordSum) / float(window*2)
+
+                reviewSum += wordSum
+            reviewTotal = reviewSum / wrCount
+
+
+            predictedLable = forest.predict(reviewTotal)
+
+            if predictedLable == Tuplabel:
+                correct +=1
 
         score = float(correct) / float((len(testVectors)))
 
-        print "for rcs of ",rcs,"fold number ", fold,"and score of ", score
+        if method ==1:
+
+            print "for rcs of ",rcs,"fold number ", fold,"and score of ", score
+        elif method == 2:
+            print "for method 2 and fold number ", fold, " score is ", score
 
 
     true = np.asarray(true)

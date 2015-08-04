@@ -339,7 +339,7 @@ aucMatrix = np.zeros([k,folds])
 
 kf = cross_validation.KFold(m,n_folds = folds)
 fold = 0
-method = 1 #which method are we using
+method = 2 #which method are we using
 for train_index, test_index in kf:
     fold +=1
 
@@ -352,17 +352,6 @@ for train_index, test_index in kf:
     testVectors = np.asarray(list(test[f][1] for f in xrange(len(test))))
     testLables = np.asarray(list(test[f][0] for f in xrange(len(test))))
 
-    forest = RandomForestClassifier(n_estimators=100)
-
-    trainVectorsBOW = vectorizer.fit_transform(trainVectors)
-    testVectorsBOW = vectorizer.fit_transform(testVectors)
-
-    forest = forest.fit(trainVectorsBOW,trainLables)
-
-    score = forest.score(testVectorsBOW,testLables)
-
-    print "bow random forest score", score
-
 
     #trainVectors = getAvgFeatureVecs(trainVectors, model, num_features)
     #testVectors = getAvgFeatureVecs(testVectors, model, num_features)
@@ -370,7 +359,6 @@ for train_index, test_index in kf:
 
     predicted = []
     true = []
-
     forest_size = 100
     forest = RandomForestClassifier( n_estimators = forest_size, oob_score=True )
     rcs = 125
@@ -406,7 +394,11 @@ for train_index, test_index in kf:
 
     forest = forest.fit(trainVectors,trainLables)
     oob_score =  forest.oob_score_
+    estimators = forest.estimators_
+    features = forest.feature_importances
     print "oob score ", oob_score
+    print "estimators ", estimators
+    print "features ", features
 
 
     rcsList = [50,75,100,125,150,200]
@@ -416,6 +408,8 @@ for train_index, test_index in kf:
         correct = 0
 
         #print "ensemble prediction rcs of ", rcs, "fold ", fold
+
+
 
 
         for i in xrange(len(testVectors)):
@@ -456,12 +450,29 @@ for train_index, test_index in kf:
                     if preditctedLabel == Tuplabel:
                         scoreKeeper+=1
 
+                    if scoreKeeper > count*.5 and g == True:
+                        correct +=1
+                        predicted.append(Tuplabel)
+
+                    else:
+                        if Tuplabel == 1:
+                            predicted.append(0)
+                        else:
+                            predicted.append(1)
+
+                    true.append(Tuplabel)
+
+
+
             elif method == 2:
-                wordList = []#needs to be wordslist
+                wordList = word[0:100]#needs to be wordslist
                 countz = 0
                 window = 2
+                wrCount = 0
+                reviewSum = 0
                 for word in review:
-                    reviewSum = 0
+
+                    wrCount += 1
 
                     if word in wordList:
                         wordSum = 0
@@ -473,9 +484,16 @@ for train_index, test_index in kf:
 
                             wordSum += makeFeatureVec(review[countz+wPlus],model,num_features)
 
-                        wordSum = float(wordSum) / float(window)
+                        wordSum = float(wordSum) / float(window*2)
 
                     reviewSum += wordSum
+                reviewTotal = reviewSum / wrCount
+
+
+                predictedLable = forest.predict(reviewTotal)
+
+                if predictedLable == Tuplabel:
+                    correct +=1
 
 
 
@@ -483,22 +501,20 @@ for train_index, test_index in kf:
 
 
 
-            if scoreKeeper > count*.5 and g == True:
-                correct +=1
-                predicted.append(Tuplabel)
 
-            else:
-                if Tuplabel == 1:
-                    predicted.append(0)
-                else:
-                    predicted.append(1)
 
-            true.append(Tuplabel)
+
+
+
 
 
         score = float(correct) / float((len(testVectors)))
 
-        print "for rcs of ",rcs,"fold number ", fold,"and score of ", score
+        if method ==1:
+
+            print "for rcs of ",rcs,"fold number ", fold,"and score of ", score
+        elif method == 2:
+            print "for method 2 and fold number ", fold, " score is ", score
 
 
     true = np.asarray(true)
