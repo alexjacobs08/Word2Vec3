@@ -320,42 +320,22 @@ for n in nSmalList:
 print zWordList
 
 """
-print posWordCountMatrix.shape
-pvales = []
-posPvales = []
-negPvales = []
+#print posWordCountMatrix.shape
 
-print "pos",scipy.stats.ttest_ind(posWordCountMatrix[0,:],negWordCountMatrix[0,:])
-print "neg",scipy.stats.ttest_ind(negWordCountMatrix[0,:],posWordCountMatrix[0,:])
+Pvales = []
+
 
 for i in xrange(posWordCountMatrix.shape[0]):
 
-    negPvales.append(scipy.stats.ttest_ind(posWordCountMatrix[i,:],negWordCountMatrix[i,:]))
-    posPvales.append(scipy.stats.ttest_ind(negWordCountMatrix[i,:],posWordCountMatrix[i,:]))
-print len(pvales)
-
-posPvales = heapq.nsmallest(30, enumerate(posPvales), key=lambda x: x[1])
-print posPvales
-posList = np.asarray([posPvales[i][0] for i in xrange(len(posPvales))],int)
-print posList
-nPosWordList = []
-for n in posList:
-    nPosWordList.append(wordList[n])
-
-print nPosWordList[0:30]
+    Pvales.append(scipy.stats.ttest_ind(posWordCountMatrix[i,:],negWordCountMatrix[i,:])[1])
 
 
-negPvales = heapq.nsmallest(30, enumerate(negPvales), key=lambda x: x[1])
-negList = np.asarray([negPvales[i][0] for i in xrange(len(negPvales))],int)
-nNegWordList = []
-for n in negList:
-    nNegWordList.append(wordList[n])
+newMat = np.hstack((posWordCountMatrix,negWordCountMatrix))
 
-print nNegWordList[0:30]
+var = list(scipy.var(newMat,axis=1))
+print len(var)
+print var[0:10]
 
-#fname = "300features_40minwords_10context"
-#num_features = 300
-#model = Word2Vec.load(fname)
 
 review_1= []
 for i in xrange(len(corpus)):
@@ -366,58 +346,138 @@ random.shuffle(review_1) #shuffle the corpus
 #print "builing Word2Vec model..."
 model = Word2Vec(review_1, size=num_features, window=15, workers=1)
 
-wordList = words[0:100]#needs to be wordslist
-countz = 0
-window = 2
-wrCount = 0
-reviewSum = 0
+nEnumList = [400]
+
+for nN in nEnumList:
+    #Pvales = heapq.nsmallest(nN, enumerate(Pvales), key=lambda x: x[1]) for Pvalue approach
+    #pList = np.asarray([Pvales[i][0] for i in xrange(len(Pvales))],int)
+
+    Pvales = heapq.nlargest(nN, var) #for variance approach
+    print Pvales[0:10]
+    pList = np.asarray([Pvales[i] for i in xrange(len(Pvales))],int)
+
+    nWordList = []
+    for n in pList:
+        nWordList.append(wordList[n])
+
+    print nWordList
+
+    #print nWordList[0:300]
+
+    #fname = "300features_40minwords_10context"
+    #num_features = 300
+    #model = Word2Vec.load(fname)
+
+    review_1= []
+    for i in xrange(len(corpus)):
+        review_1 += review_to_sentences(corpus[i], tokenizer,remove_stopwords=True)
+
+    random.shuffle(review_1) #shuffle the corpus
+
+    #print "builing Word2Vec model..."
+    model = Word2Vec(review_1, size=num_features, window=15, workers=1)
+
+    #go through all reviews and cluster into k clusters using k means based on the vectors from the n important words
 
 
-#go through all reviews and cluster into k clusters using k means based on the vectors from the n important words
+    centroids = []
+    for review in positiveReviews:
+        review1 = review_to_wordlist(review)
+
+        x = 0
+        for word in review1:
+            if x == 0:
+                try:
+                    reviewArray = np.asarray(model[word])
+                    x=1
+                except:
+                    x = 0
+                    #print word
+
+            else:
+                #print "else"
+                if word in nWordList:
+                    #print "in word list"
+                    #vect = makeFeatureVec(word,model,num_features)
+                    try:
+                        reviewArray = np.vstack((reviewArray,[np.asarray(model[word])]))
+                    except:
+                        nsdfks = 0
+
+        try:
+            cluster = KMeans(init='k-means++', n_clusters=50)
+            cluster.fit_transform(reviewArray)
+            cluster_centers = cluster.cluster_centers_
+            centroids.append((1,cluster_centers))
+        except:
+            nNTnnt = 9
+
+    for review in negativeReviews:
+        review1 = review_to_wordlist(review)
+
+        x = 0
+        for word in review1:
+            if x == 0:
+                try:
+                    reviewArray = np.asarray(model[word])
+                    x=1
+                except:
+                    x = 0
+                    #print word
+
+            else:
+                #print word
+                if word in nWordList:
+                    #print "in word list"
+                    #vect = makeFeatureVec(word,model,num_features)
+                    try:
+                        reviewArray = np.vstack((reviewArray,[np.asarray(model[word])]))
+                    except:
+                        nntnt = 0
+        try:
+            cluster = KMeans(init='k-means++', n_clusters=50)
+            cluster.fit_transform(reviewArray)
+            cluster_centers = cluster.cluster_centers_
+            centroids.append((0,cluster_centers))
+        except:
+           nnTnnt = 0
 
 
-centroids = []
-for review in positiveReviews:
-    review = review_to_wordlist(review)
 
-    x = 0
-    for word in review:
-        if x == 0:
-            reviewArray = np.asarray(model[word])
-            x+=1
-        else:
-            if word in nNegWordList:
-                #vect = makeFeatureVec(word,model,num_features)
-                np.vstack((reviewArray,model[word]))
-            if word in nPosWordList:
-                np.vstack((reviewArray,model[word]))
+    print "shuffling centroids"
+    random.shuffle(centroids)
+    m = len(centroids)
+
+    print "m"
+
+    folds = 4
 
 
-    cluster = KMeans(n_clusters=10,max_iter=50)
-    cluster = cluster.fit_transform(reviewArray)
-    centroids.append((1,cluster.cluster_centers_))
+    kf = cross_validation.KFold(m,n_folds = folds)
+
+    scores = []
+    for train_index, test_index in kf:
+
+        train = list(centroids[f] for f in train_index)
+        test = list(centroids[f] for f in test_index)
 
 
-for review in negativeReviews:
-    review = review_to_wordlist(review)
-
-    x = 0
-    for word in review:
-        if x == 0:
-            reviewArray = np.asarray(model[word])
-            x+=1
-        else:
-            if word in nNegWordList:
-                #vect = makeFeatureVec(word,model,num_features)
-                np.vstack((reviewArray,model[word]))
-            if word in nPosWordList:
-                np.vstack((reviewArray,model[word]))
+        trainVectors = np.asarray(list(np.ravel(train[f][1])for f in xrange(len(train))))
+        trainLables = np.asarray(list(train[f][0] for f in xrange(len(train))))
 
 
-    cluster = KMeans(n_clusters=10,max_iter=50)
-    cluster = cluster.fit_transform(reviewArray)
-    centroids.append((0,cluster.cluster_centers_))
 
+        testVectors = np.asarray(list(np.ravel(test[f][1])for f in xrange(len(test))))
+        testLables = np.asarray(list(test[f][0] for f in xrange(len(test))))
+
+
+        forest_size = 1000
+        forest = RandomForestClassifier( n_estimators = forest_size )
+        forest = forest.fit(trainVectors,trainLables)
+        scores.append(forest.score(testVectors,testLables))
+
+    score = sum(scores)/float(len(scores))
+    print "score with ", nN, " important words is ", score
 
 
 
