@@ -193,12 +193,25 @@ for i in os.listdir(negativeDataFile):
         negativeReviews.append(f.read())
     f.close()
 
+print "positive reviews", len(positiveReviews)
+print "negative reviews", len(negativeReviews)
+
 corpus = list(positiveReviews + negativeReviews)
 
+""" ###count words
+review_1 = []
+for i in xrange(len(corpus)):
+    review_1 += review_to_sentences(corpus[i],tokenizer)
+
+review_1 = [' '.join(x) for x in review_1]
+#print review_1[0:100]
+words = re.findall(r'\w+', str(review_1))
+print "num of words", len(words)
+"""
 #shorten for testing
 
-positiveReviews = positiveReviews[0:500]
-negativeReviews = negativeReviews[0:500]
+#positiveReviews = positiveReviews[0:500]
+#negativeReviews = negativeReviews[0:500]
 
 
 posReviewToList = []
@@ -230,7 +243,7 @@ vectorizer = CountVectorizer(analyzer = "word",   \
                              tokenizer = None,    \
                              preprocessor = None, \
                              stop_words = None,   \
-                             max_features = 5000)
+                             max_features = None)
 
 # BOW_pos = []
 # for i in xrange(len(posReviewToList)):
@@ -246,6 +259,11 @@ BOW_all = BOW_pos + BOW_neg
 
 BOW_features = vectorizer.fit_transform(BOW_all)
 BOW_features = BOW_features.toarray()
+
+print "lengeth"
+print len(BOW_features[0])
+
+print len(BOW_features[1])
 
 
 
@@ -279,19 +297,20 @@ with open(clusterFile) as f:
 
     line = f.readlines()
     f.close()
-
+print len(line)
 for line in line:
     word,clustNum = str.split(line)
 
     words.append(word)
     clusters.append(int(clustNum))
 
+clusterArrayLen = len(clusters)
 startTime = time.time()
 
 print "clustering positive"
 clusterArraysPostitive = []
 for review in posReviewToList:
-    clusterArray = np.zeros(500)
+    clusterArray = np.zeros(3500)
     for word in review:
         try:
             clusterNumber = clusters[words.index(word)]
@@ -309,7 +328,7 @@ startTime = time.time()
 print "clustering negative"
 clusterArraysNegative = []
 for review in negReviewToList:
-    clusterArray = np.zeros(500)
+    clusterArray = np.zeros(3500)
     for word in review:
         try:
             clusterNumber = clusters[words.index(word)]
